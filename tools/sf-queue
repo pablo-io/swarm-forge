@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# sf-queue — estado de las colas de handoff de todos los roles del swarm.
+# Uso: sf-queue [directorio-del-proyecto]   (por defecto: directorio actual)
+# Muestra: new (pendientes) · proc (en proceso, incluye batches) · done (completados)
+#          outbox (por enviar) · sent (enviados) + nombres de tarea.
+set -euo pipefail
+
+ROOT="${1:-$(pwd)}"
+cd "$ROOT"
+TSV=".swarmforge/roles.tsv"
+[ -f "$TSV" ] || { echo "No hay swarm en $ROOT (falta $TSV)" >&2; exit 1; }
+
+count() { # count <globs...> → nº de ficheros .handoff (también dentro de batch_*/)
+  local n=0 f
+  for f in "$@"; do [ -f "$f" ] && n=$((n+1)); done
+  echo "$n"
+}
+
+while IFS=$'\t' read -r role wtname wtpath session display agent mode; do
+  H="$wtpath/.swarmforge/handoffs"
+  [ -d "$H" ] || continue
+  new=$(count "$H"/inbox/new/*.handoff)
+  proc=$(count "$H"/inbox/in_process/*.handoff "$H"/inbox/in_process/batch_*/*.handoff)
+  donec=$(count "$H"/inbox/completed/*.handoff "$H"/inbox/completed/batch_*/*.handoff)
+  out=$(count "$H"/outbox/*.handoff)
+  sent=$(count "$H"/sent/*.handoff)
+  printf "== %-10s new=%-2s proc=%-2s done=%-2s outbox=%-2s sent=%-2s\n" \
+    "$role" "$new" "$proc" "$donec" "$out" "$sent"
+  for f in "$H"/inbox/new/*.handoff; do [ -f "$f" ] && echo "   [pendiente]  $(sed -n 's/^task: //p' "$f")"; done
+  for f in "$H"/inbox/in_process/*.handoff; do [ -f "$f" ] && echo "   [en proceso] $(sed -n 's/^task: //p' "$f")"; done
+  for d in "$H"/inbox/in_process/batch_*; do
+    [ -d "$d" ] && for f in "$d"/*.handoff; do [ -f "$f" ] && echo "   [batch]      $(sed -n 's/^task: //p' "$f")"; done
+  done
+  for f in "$H"/outbox/*.handoff; do [ -f "$f" ] && echo "   [outbox]     $(sed -n 's/^task: //p' "$f")"; done
+done < "$TSV"
+exit 0

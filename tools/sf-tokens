@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# sf-tokens — consumo de tokens por rol (desde las sesiones de pi).
+# Uso: sf-tokens [directorio-del-proyecto]   (por defecto: directorio actual)
+# Suma usage de todas las sesiones pi de cada worktree (cumulativo por rol).
+set -euo pipefail
+
+ROOT="${1:-$(pwd)}"
+ROOT="$(cd "$ROOT" && pwd)"
+TSV="$ROOT/.swarmforge/roles.tsv"
+[ -f "$TSV" ] || { echo "No hay swarm en $ROOT (falta $TSV)" >&2; exit 1; }
+SESS_DIR="${PI_SESSIONS_DIR:-$HOME/.pi/agent/sessions}"
+
+# El dir de sesión de pi se deriva del path del worktree:
+# /home/pol/Work/code/saas-prototype/.worktrees/coder → --home-pol-Work-code-saas-prototype-.worktrees-coder--
+session_dir_for_path() {
+  local p="$1"
+  p="${p%/}"                                  # quitar / final
+  p="${p%/\.}"                                # quitar '/.' (path de master en roles.tsv)
+  p="${p#/}"                                  # quitar / inicial
+  p="${p//\//-}"                              # / → -
+  echo "--${p}--"
+}
+
+fmt() { printf "%'d" "$1"; }
+
+total_in=0; total_out=0; total_cache=0; total_all=0
+
+while IFS=$'\t' read -r role wtname wtpath session display agent mode; do
+  [ -n "$role" ] || continue
+  sdir="$(session_dir_for_path "$wtpath")"
+  dir="$SESS_DIR/$sdir"
+  if [ ! -d "$dir" ]; then
+    printf "%-10s sin sesión pi (%s)\n" "$role" "$sdir"
+    continue
+  fi
+  # Sumar usage de todos los mensajes de todas las sesiones del rol
+  read -r i o cr cw all <<< "$(awk -F'"' '
+    /"usage":/ {
+      line=$0
+      if (match(line, /"input":([0-9]+)/)) in_t += substr(line, RSTART+8, RLENGTH-8)
+      if (match(line, /"output":([0-9]+)/)) out_t += substr(line, RSTART+9, RLENGTH-9)
+      if (match(line, /"cacheRead":([0-9]+)/)) cr_t += substr(line, RSTART+12, RLENGTH-12)
+      if (match(line, /"cacheWrite":([0-9]+)/)) cw_t += substr(line, RSTART+13, RLENGTH-13)
+    }
+    END { printf "%d %d %d %d %d\n", in_t, out_t, cr_t, cw_t, in_t+out_t+cr_t+cw_t }
+  ' "$dir"/*.jsonl 2>/dev/null)"
+  if [ -n "${all:-}" ]; then
+    printf "%-10s input=%-12s output=%-11s cache=%-11s TOTAL=%s\n" \
+      "$role" "$(fmt "$i")" "$(fmt "$o")" "$(fmt $((cr+cw)))" "$(fmt "$all")"
+    total_in=$((total_in+i)); total_out=$((total_out+o)); total_cache=$((total_cache+cr+cw)); total_all=$((total_all+all))
+  else
+    printf "%-10s sin uso registrado\n" "$role"
+  fi
+done < "$TSV"
+
+echo "------------------------------------------"
+printf "TOTAL      input=%-12s output=%-11s cache=%-11s TOTAL=%s\n" \
+  "$(fmt "$total_in")" "$(fmt "$total_out")" "$(fmt "$total_cache")" "$(fmt "$total_all")"

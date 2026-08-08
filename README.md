@@ -50,6 +50,22 @@ window architect claude architect batch --dangerously-skip-permissions
 - Anything after the receive mode (`task`/`batch`) is passed to the agent CLI: `--model`,
   `--thinking`, `--yolo`, etc.
 
+## Monitoring tools
+
+The `tools/` folder ships two small bash utilities (no dependencies) for operating a swarm:
+
+- **`tools/sf-queue [project-dir]`** — live handoff queue state for every role: pending (`new`),
+  in-process (incl. batches), completed, outbox, sent, plus task names. Reads `.swarmforge/roles.tsv`
+  and works with any agent backend.
+- **`tools/sf-tokens [project-dir]`** — token consumption per role (input / output / cache / total)
+  from pi's session files (`~/.pi/agent/sessions`, organized per worktree). Cumulative across
+  restarts. pi-specific (only meaningful when pi is the backend).
+
+```bash
+bash tools/sf-queue /path/to/project   # queue state per role
+bash tools/sf-tokens /path/to/project  # tokens per role (pi sessions)
+```
+
 ## Adding another agent backend
 
 The launcher validates backends in `parse-config` and builds the launch command in

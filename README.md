@@ -1,85 +1,122 @@
-# SwarmForge — `four-pack-pi-linux`
+# SwarmForge — pi-optimized, universal agent support
 
-Fork branch of [unclebob/swarm-forge](https://github.com/unclebob/swarm-forge) (branch `four-pack`)
-adapted to run the four-pack workflow with **[pi](https://pi.dev)** as the single agent harness,
-**fully on Linux**, **bash-native**, with **one model per role**.
+Fork of [unclebob/swarm-forge](https://github.com/unclebob/swarm-forge) (based on the `four-pack`
+workflow) that runs the swarm with **[pi](https://pi.dev)** as the agent harness — while keeping
+**universal support** for other agent CLIs, **any model** per role, and **bash** instead of zsh.
 
-Upstream `four-pack` roles (unchanged semantics): `specifier` → `coder` → `refactorer` → `architect`
-with human approval at the specifier gate.
+The `four-pack` pipeline is unchanged: `specifier` → `coder` → `refactorer` → `architect` with
+human approval at the specifier gate.
 
 ---
-
-## Changes vs upstream
-
-| # | Change | Why |
-|---|---|---|
-| 1 | **pi as agent backend** (`swarmforge.bb`) | `parse-config` accepts `pi`; launch arm: `pi -a --name 'SwarmForge <Role>' [extra-args] "$(cat prompt)"`. pi starts interactive, sends the initial prompt, and stays in the TUI (wake-ups arrive as typed messages). |
-| 2 | **Bash-native, zero zsh dependency** | All 18 shell scripts migrated: shebangs `zsh` → `bash`, `${1:l}` → `tr`, `<->` glob → regex, `&!` → `& disown` (tmux pane shell is bash), `zsh -c` → `bash -c` in `swarmforge.bb` and `swarm-window-watchdog.bb`. |
-| 3 | **One model per role** (`swarmforge.conf`) | DeepSeek (opencode-go flash) / Qwen / GLM per role. Model ids verified with `pi --list-models`. No custom pi provider extensions needed. |
-| 4 | **Self-contained branch** | `swarmforge/scripts/` vendored (upstream ignores it and downloads from `main`); `.gitignore` adjusted; empty `scripts/shared-articles/` prevents the wrapper download. `bb.edn` + `test/` + `close-swarm` vendored too. |
-| 5 | **Shared constitution articles included** | `engineering.prompt`, `handoffs.prompt`, `workflow.prompt` copied into `constitution/articles/` (upstream `four-pack` only carries `project.prompt`, so agents had no handoff/workflow rules). |
-| 6 | **Git identity and worktree failure detection** (`swarmforge.bb`) | Upstream fails *silently* when `git commit` cannot run (no `user.name`/`user.email`) → unborn HEAD → empty worktrees. Now: clear error with instructions before `git init`, and `fail!` if `git worktree add` fails. |
-
-## Scope (verified)
-
-Everything below was verified on Linux (Arch) with the real pi CLI (v0.84.1) and real provider credentials:
-
-- [x] `bb test` — 24 tests, 91 assertions, 0 failures (no zsh required)
-- [x] Launch command generation: `pi -a --name 'SwarmForge <Role>' --model <provider/model> "$(cat prompt)"`
-- [x] Swarm startup headless (`SWARMFORGE_TERMINAL=none`): 4 tmux sessions, 4 real git worktrees with `swarmforge-<role>` branches, 4 pi agents live with the correct model per role
-- [x] Handoff protocol end-to-end: commit → draft → `swarm_handoff.sh` validation → outbox → daemon → `inbox/new/` (generated headers + `merge_and_process` payload) → tmux wake-up typed into the pi TUI → `ready_for_next.sh` with batch semantics
-- [x] Clean shutdown via `close-swarm`
-- [x] Git identity guard: clear failure with instructions when identity is missing
-
-Not tested: macOS/Windows terminal adapters (kept from upstream, bash-ported, not exercised on Linux),
-window watchdog with a trackable terminal backend (Linux headless mode has no windows by design),
-full four-pack pipeline with human approval (needs a real task and your approval at the specifier gate).
-
-## Prerequisites (Linux)
-
-- `bash` (default shell; tmux panes run it)
-- `git` with **`user.name` and `user.email` configured** (global or local) — required for the initial commit
-- `tmux` ≥ 3.5 (recommended for pi extended keys)
-- Babashka (`bb`) — single static binary
-- pi CLI (`@earendil-works/pi-coding-agent`), authenticated with the providers you use
-- Provider keys for pi, e.g. `QWEN_TOKEN_PLAN_API_KEY` (used by the default config)
 
 ## Quickstart
 
 ```bash
-# copy this branch into a project directory
-BRANCH=four-pack-pi-linux
-curl -L "https://github.com/pablo-io/swarm-forge/archive/refs/heads/${BRANCH}.tar.gz" | tar -xz --strip-components=1
+# copy this fork's main branch into a project directory
+curl -L "https://github.com/pablo-io/swarm-forge/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1
 
-# start the swarm (headless on Linux; attach to sessions manually)
+# edit swarmforge/swarmforge.conf (pick your models, see below), then start
 SWARMFORGE_TERMINAL=none ./swarm
 
-# observe/steer an agent (from another terminal)
+# observe/steer agents (headless Linux: attach to sessions manually)
 tmux -S "$(cat .swarmforge/tmux-socket)" attach -t swarmforge-coder
 
 # stop the swarm
 ./close-swarm
 ```
 
-## Configuration — models per role
+## Using any model (per role)
 
-`swarmforge/swarmforge.conf`:
+Models are **configuration, not code**: the `extra-args` field of `swarmforge.conf` is passed
+straight to the agent CLI. To pick a different model, change `--model` (pi) or the equivalent
+flag of your backend:
 
 ```conf
+# pi + models per role (one provider per model family)
 window specifier pi master --model opencode-go/deepseek-v4-flash
 window coder pi coder --model opencode-go/deepseek-v4-flash
 window refactorer pi refactorer batch --model qwen-token-plan/qwen3.7-max
 window architect pi architect batch --model qwen-token-plan/glm-5.2
+
+# or a different backend entirely
+window coder codex coder --yolo
+window architect claude architect batch --dangerously-skip-permissions
 ```
 
-- Any field after the receive mode (`task`/`batch`) is passed to the pi CLI: `--model`, `--thinking`, etc.
-- Available models: `pi --list-models` / `pi --list-models <provider>` (run `pi update --models` after catalog changes).
-- The `qwen-token-plan` provider exposes DeepSeek, Qwen, **and GLM** models; `opencode-go` also exposes DeepSeek and GLM variants. Both are configured in pi's `auth.json`.
+- List what your harness offers: `pi --list-models` / `pi --list-models <provider>` (run
+  `pi update --models` after catalog changes).
+- pi supports DeepSeek, Qwen (incl. GLM) and many providers natively — no custom provider
+  extensions needed for those.
+- Anything after the receive mode (`task`/`batch`) is passed to the agent CLI: `--model`,
+  `--thinking`, `--yolo`, etc.
+
+## Adding another agent backend
+
+The launcher validates backends in `parse-config` and builds the launch command in
+`launch-command` (`swarmforge/scripts/swarmforge.bb`). To add a CLI:
+
+1. Add the name to the allowed set in `parse-config`:
+   ```clojure
+   (when-not (#{"claude" "codex" "copilot" "grok" "pi" "your-agent"} agent)
+   ```
+2. Add a `case` arm in `launch-command` that starts the CLI interactively with the initial
+   prompt, e.g. for pi:
+   ```clojure
+   "pi" (str "pi -a --name " (sq (str "SwarmForge " display)) " "
+             (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
+   ```
+3. The binary must be on `PATH` (the launcher checks it). The agent must be an **interactive
+   TUI/REPL** that accepts typed input — wake-ups arrive as a typed message + Enter.
+
+Tip: for many backends, a per-harness launch script (like `terminal-adapters/`) is cleaner than
+adding `case` arms — the fork is happy to host one per agent.
+
+## Changes & improvements vs upstream
+
+| # | Change | Why |
+|---|---|---|
+| 1 | **pi as agent backend** | `parse-config` accepts `pi`; launch arm `pi -a --name 'SwarmForge <Role>' [extra] "$(cat prompt)"`. pi starts interactive, sends the initial prompt, stays in the TUI. |
+| 2 | **Bash-native, zero zsh dependency** | All shell scripts migrated: shebangs `zsh` → `bash`, `${1:l}` → `tr`, `<->` glob → regex, `&!` → `& disown` (tmux pane shell is bash), `zsh -c` → `bash -c` in `swarmforge.bb`/`swarm-window-watchdog.bb`. Bash is the default on Linux and exists on every platform. |
+| 3 | **Universal wake-up (pi + others)** | Upstream typed the wake-up text then a separate Enter; pi-tui drops a standalone CR, so messages sat in the editor. The fork embeds the CR in the same write (`text\r`) and keeps the trailing LF for other TUIs — validated in pi, compatible with claude/codex/grok. |
+| 4 | **Self-contained branch** | `swarmforge/scripts/` vendored (upstream ignores it and downloads from `main`); `.gitignore` adjusted; empty `scripts/shared-articles/` stops the wrapper download. No surprise overwrites from upstream. |
+| 5 | **Shared constitution articles included** | `engineering.prompt`, `handoffs.prompt`, `workflow.prompt` copied into `constitution/articles/` (upstream `four-pack` only carries `project.prompt`, so agents had no handoff/workflow rules). |
+| 6 | **Git identity and worktree failure detection** | Upstream fails *silently* when `git commit` cannot run (no `user.name`/`user.email`) → unborn HEAD → empty worktrees. Now: clear error with instructions before `git init`, and `fail!` if `git worktree add` fails. |
+
+## Scope (verified)
+
+Verified on Linux (Arch) with the real pi CLI and real provider credentials:
+
+- [x] `bb test` — 24 tests, 91 assertions, 0 failures (no zsh required)
+- [x] Launch command generation: `pi -a --name 'SwarmForge <Role>' --model <provider/model> "$(cat prompt)"`
+- [x] Swarm startup headless (`SWARMFORGE_TERMINAL=none`): tmux sessions, real git worktrees with
+      `swarmforge-<role>` branches, agents live with the correct model per role
+- [x] Handoff protocol end-to-end: commit → draft → validation → outbox → daemon → inbox
+      (generated headers + `merge_and_process` payload) → tmux wake-up → `ready_for_next.sh`
+      (task and batch semantics)
+- [x] Autonomous chain: coder → refactorer → architect with automatic task pickup and forwarding
+- [x] Clean shutdown via `close-swarm`
+- [x] Git identity guard: clear failure with instructions when identity is missing
+- [x] Universal wake-up: auto-submit in pi with embedded CR; trailing LF retained for other TUIs
+
+Not tested: macOS/Windows terminal adapters (bash-ported from upstream, not exercised on Linux),
+window watchdog with a trackable terminal backend (Linux headless mode has no windows by design).
+
+## Requirements
+
+- **bash** (default shell; tmux panes run it). No zsh required.
+  - Linux: any modern distro (bash ≥ 4.4). Windows/WSL: fine.
+  - macOS: system bash is 3.2 — `close-swarm` uses array append (`sessions+=(...)`, bash ≥ 4);
+    use a modern bash (Homebrew) or zsh on macOS.
+- `git` with **`user.name` and `user.email` configured** — enforced with a clear error at startup.
+- `tmux` ≥ 3.5 (recommended for pi extended keys).
+- Babashka (`bb`) — single static binary.
+- One or more agent CLIs on `PATH` (pi, codex, claude, …), authenticated for the providers you use.
 
 ## Notes
 
-- **No zsh required** — this branch is fully bash. Upstream is zsh-based; if you rebase against upstream `main`
-  scripts, re-apply the bash migration (2 syntax sites + shebangs + `zsh -c` + `&!`).
-- **Git identity is enforced** at startup with a clear error (see Change 6).
+- **This branch is self-contained**: it does not auto-follow upstream `main` script updates
+  (scripts are vendored). Rebase/merge manually if you want upstream changes.
 - Handoff semantics are unchanged from upstream: only `git_handoff` / `note`, priorities 00–99,
   chain forwarding always, terminal broadcast merge-only. See `swarmforge/handoff-protocol.md`.
+- Upstream is zsh-based; if you pull upstream scripts, re-apply the bash migration
+  (2 syntax sites + shebangs + `zsh -c` + `&!`).

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# ui-conformance — gate de diseño verificable para proyectos del fork.
+# Uso: ui-conformance [directorio-del-proyecto]   (por defecto: directorio actual)
+#
+# Reglas (deben cumplirse en cada slice frontend; falla con exit != 0):
+#   1. Sin HTML crudo (<input>/<button>/<label>) fuera de src/components/ui/
+#   2. Los componentes del design system existen (card, input, label, button)
+#   3. Alguna página/componente importa el design system
+set -euo pipefail
+
+ROOT="${1:-$(pwd)}"
+FRONT="$ROOT/frontend"
+[ -d "$FRONT" ] || { echo "no hay frontend/ en $ROOT" >&2; exit 1; }
+UI_DIR="$FRONT/src/components/ui"
+fail=0
+
+# 1. UI compuesta del design system: sin HTML crudo fuera de ui/
+raw=$(grep -rnE '<(input|button|label)\b' "$FRONT/src" --include="*.tsx" 2>/dev/null | grep -v "/ui/" || true)
+if [ -n "$raw" ]; then
+  echo "✗ HTML crudo fuera del design system:"
+  echo "$raw"
+  fail=1
+else
+  echo "✓ sin HTML crudo fuera de src/components/ui/"
+fi
+
+# 2. Componentes del design system presentes
+for c in card input label button; do
+  if [ -f "$UI_DIR/$c.tsx" ]; then
+    echo "✓ ui/$c.tsx"
+  else
+    echo "✗ falta ui/$c.tsx"
+    fail=1
+  fi
+done
+
+# 3. Al menos una página/componente importa el design system
+imports=$(grep -rlE 'ui/(card|input|label|button)' "$FRONT/src" "$FRONT/app" --include="*.tsx" 2>/dev/null || true)
+if [ -n "$imports" ]; then
+  echo "✓ design system en uso: $(echo "$imports" | tr '\n' ' ')"
+else
+  echo "✗ ninguna página/componente usa el design system"
+  fail=1
+fi
+
+if [ $fail -eq 0 ]; then
+  echo "OK — diseño conforme a las reglas del project.prompt"
+else
+  echo "FALLOS — revisa las reglas de diseño en swarmforge/constitution/articles/project.prompt" >&2
+fi
+exit $fail

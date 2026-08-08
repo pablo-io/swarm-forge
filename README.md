@@ -50,6 +50,22 @@ window architect claude architect batch --dangerously-skip-permissions
 - Anything after the receive mode (`task`/`batch`) is passed to the agent CLI: `--model`,
   `--thinking`, `--yolo`, etc.
 
+## Frontend design capability
+
+Behavior-driven pipelines verify *what* a UI does, not *how it looks* — without
+intervention the agents deliver functional-but-unstyled interfaces. This fork adds
+three pieces so projects get real, verifiable UI design:
+
+1. **Design system as raw material** — commit `src/components/ui/` (Card, Input,
+   Label, Button, …) + Tailwind theme tokens (`app/globals.css`). Agents compose
+   from the system instead of writing raw HTML.
+2. **Design as a verifiable rule** — `project.prompt` forbids raw `<input>`/
+   `<button>`/`<label>` outside `ui/` and requires the design system in every slice.
+3. **A conformance gate** — `tools/ui-conformance <project-dir>` fails the handoff
+   if raw HTML leaks, ui/ components are missing, or the system is unused.
+
+The human visual review of the rendered page remains the final aesthetic gate.
+
 ## Monitoring tools
 
 The `tools/` folder ships two small bash utilities (no dependencies) for operating a swarm:

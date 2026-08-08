@@ -92,17 +92,13 @@
            ".swarmforge" "handoffs" "inbox" "new" filename))
 
 (defn notify! [socket session]
-  (let [send-text (sh "tmux" "-S" socket "send-keys" "-t" session "-l" wake-message)
-        _ (Thread/sleep 150)
-        send-carriage-return (sh "tmux" "-S" socket "send-keys" "-t" session "C-m")
-        _ (Thread/sleep 50)
-        send-line-feed (sh "tmux" "-S" socket "send-keys" "-t" session "C-j")]
+  ;; pi/TUI compat: el CR debe ir EMBEBIDO en el mismo write que el texto.
+  ;; Un C-m enviado como chunk separado lo descarta pi-tui (quedaba pegado
+  ;; en el editor sin enviar). texto+\r en un solo send-keys -l funciona.
+  (let [send-text (sh "tmux" "-S" socket "send-keys" "-t" session "-l" (str wake-message "\r"))
+        _ (Thread/sleep 300)]
     (when-not (zero? (:exit send-text))
-      (throw (ex-info "tmux send text failed" send-text)))
-    (when-not (zero? (:exit send-carriage-return))
-      (throw (ex-info "tmux send carriage return failed" send-carriage-return)))
-    (when-not (zero? (:exit send-line-feed))
-      (throw (ex-info "tmux send line feed failed" send-line-feed)))))
+      (throw (ex-info "tmux send text failed" send-text)))))
 
 (defn move-with-collision [source target-dir]
   (fs/create-dirs target-dir)

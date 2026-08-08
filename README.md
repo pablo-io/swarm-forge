@@ -15,7 +15,7 @@ with human approval at the specifier gate.
 |---|---|---|
 | 1 | **pi as agent backend** (`swarmforge.bb`) | `parse-config` accepts `pi`; launch arm: `pi -a --name 'SwarmForge <Role>' [extra-args] "$(cat prompt)"`. pi starts interactive, sends the initial prompt, and stays in the TUI (wake-ups arrive as typed messages). |
 | 2 | **Bash-native, zero zsh dependency** | All 18 shell scripts migrated: shebangs `zsh` → `bash`, `${1:l}` → `tr`, `<->` glob → regex, `&!` → `& disown` (tmux pane shell is bash), `zsh -c` → `bash -c` in `swarmforge.bb` and `swarm-window-watchdog.bb`. |
-| 3 | **One model per role** (`swarmforge.conf`) | DeepSeek / Qwen / GLM per role via the `qwen-token-plan` provider (single API key, catalog verified with `pi --list-models`). No custom pi provider extensions needed. |
+| 3 | **One model per role** (`swarmforge.conf`) | DeepSeek (opencode-go flash) / Qwen / GLM per role. Model ids verified with `pi --list-models`. No custom pi provider extensions needed. |
 | 4 | **Self-contained branch** | `swarmforge/scripts/` vendored (upstream ignores it and downloads from `main`); `.gitignore` adjusted; empty `scripts/shared-articles/` prevents the wrapper download. `bb.edn` + `test/` + `close-swarm` vendored too. |
 | 5 | **Shared constitution articles included** | `engineering.prompt`, `handoffs.prompt`, `workflow.prompt` copied into `constitution/articles/` (upstream `four-pack` only carries `project.prompt`, so agents had no handoff/workflow rules). |
 | 6 | **Git identity and worktree failure detection** (`swarmforge.bb`) | Upstream fails *silently* when `git commit` cannot run (no `user.name`/`user.email`) → unborn HEAD → empty worktrees. Now: clear error with instructions before `git init`, and `fail!` if `git worktree add` fails. |
@@ -66,15 +66,15 @@ tmux -S "$(cat .swarmforge/tmux-socket)" attach -t swarmforge-coder
 `swarmforge/swarmforge.conf`:
 
 ```conf
-window specifier pi master --model qwen-token-plan/deepseek-v4-pro
-window coder pi coder --model qwen-token-plan/deepseek-v4-pro
+window specifier pi master --model opencode-go/deepseek-v4-flash
+window coder pi coder --model opencode-go/deepseek-v4-flash
 window refactorer pi refactorer batch --model qwen-token-plan/qwen3.7-max
 window architect pi architect batch --model qwen-token-plan/glm-5.2
 ```
 
 - Any field after the receive mode (`task`/`batch`) is passed to the pi CLI: `--model`, `--thinking`, etc.
 - Available models: `pi --list-models` / `pi --list-models <provider>` (run `pi update --models` after catalog changes).
-- The `qwen-token-plan` provider exposes DeepSeek, Qwen, **and GLM** models with one subscription key.
+- The `qwen-token-plan` provider exposes DeepSeek, Qwen, **and GLM** models; `opencode-go` also exposes DeepSeek and GLM variants. Both are configured in pi's `auth.json`.
 
 ## Notes
 

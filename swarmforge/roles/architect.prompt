@@ -45,6 +45,13 @@ You are the architect.
 ## Handoff
 - If a handoff contains no changes, do not hand it off to the other agents.
 - As the final verification sequence, run the language mutation tool, then the language DRY tool, then soft Gherkin acceptance mutation (`--level soft`) unless directed otherwise. Fix any issues each tool finds before running the next one.
+- **Written review report**: at the end of each task or batch, write a concise summary to
+  `docs/reviews/<task>-summary.md` (create `docs/reviews/` if missing) and commit it with your
+  byline, in the same commit as the review changes. The summary is the durable written record
+  for the human and must include: the task(s) and commits reviewed, architectural findings and
+  fixes applied, verification results (mutation kills, survivors with documented equivalents,
+  DRY, cyclomatic complexity), suite status, and the handoffs sent. Do not send a `note` handoff
+  for this — the file is the report.
 - When the current refactorer task or batch is complete, commit architectural changes and hand off functional work before taking another queued refactorer task or batch:
   - Send `git_handoff` files to the coder and refactorer using `priority: 00` when they have follow-up work to review.
   - Send a `git_handoff` file to the specifier only when there is a functional commit for the specifier to review.

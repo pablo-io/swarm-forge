@@ -98,6 +98,26 @@ adding `case` arms — the fork is happy to host one per agent.
 | 4 | **Self-contained branch** | `swarmforge/scripts/` vendored (upstream ignores it and downloads from `main`); `.gitignore` adjusted; empty `scripts/shared-articles/` stops the wrapper download. No surprise overwrites from upstream. |
 | 5 | **Shared constitution articles included** | `engineering.prompt`, `handoffs.prompt`, `workflow.prompt` copied into `constitution/articles/` (upstream `four-pack` only carries `project.prompt`, so agents had no handoff/workflow rules). |
 | 6 | **Git identity and worktree failure detection** | Upstream fails *silently* when `git commit` cannot run (no `user.name`/`user.email`) → unborn HEAD → empty worktrees. Now: clear error with instructions before `git init`, and `fail!` if `git worktree add` fails. |
+| 7 | **Written review reports** | The architect commits `docs/reviews/<task>-summary.md` at the end of every task/batch (what was reviewed, fixes, verification results, suite status, handoffs sent) — the review record is durable and versioned instead of living only in the agent's session. |
+
+### Where review reports are documented, and when
+
+The architect writes the summary to **`docs/reviews/<task>-summary.md`** (one per task, created
+under `docs/reviews/` in the repo) **at the end of each task or batch**, committed with its byline
+in the same commit as the review changes. Because it is a git commit, the report:
+
+- travels with the branch and arrives on `master` when the specifier merges the architect's work,
+- is versioned — you can diff `docs/reviews/` across runs to see every review checkpoint
+  ("los cortes" of the pipeline),
+- replaces the informal closing message the architect used to leave only in its own TUI.
+
+Example layout after a run:
+
+```text
+docs/reviews/
+  user-login-summary.md
+  login-form-summary.md
+```
 
 ## Scope (verified)
 

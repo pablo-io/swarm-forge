@@ -118,13 +118,22 @@
     (ensure-in-file! exclude-file ".swarmforge/")
     (ensure-in-file! exclude-file ".worktrees/")))
 
+(defn git-identity-ok? [dir]
+  (and (sh-ok? "git" "-C" dir "config" "user.name")
+       (sh-ok? "git" "-C" dir "config" "user.email")))
+
 (defn initialize-git-repo! [ctx]
   (when-not (fs/exists? (fs/path (:working-dir ctx) ".git"))
-    (sh "git" "init" (str (:working-dir ctx)))
-    (sh "git" "-C" (str (:working-dir ctx)) "branch" "-M" "master")
-    (ensure-initial-gitignore! ctx)
-    (sh "git" "-C" (str (:working-dir ctx)) "add" ".")
-    (sh "git" "-C" (str (:working-dir ctx)) "commit" "-m" "Initial swarmforge repository")))
+    (let [dir (str (:working-dir ctx))]
+      (when-not (git-identity-ok? dir)
+        (fail! (str red "Error:" reset " Git identity not configured. Run:"
+                    "\n  git config --global user.name \"Your Name\""
+                    "\n  git config --global user.email \"you@example.com\"")))
+      (sh "git" "init" dir)
+      (sh "git" "-C" dir "branch" "-M" "master")
+      (ensure-initial-gitignore! ctx)
+      (sh "git" "-C" dir "add" ".")
+      (sh "git" "-C" dir "commit" "-m" "Initial swarmforge repository"))))
 
 (defn parse-config [ctx]
   (when-not (fs/exists? (:config-file ctx))
@@ -256,7 +265,9 @@
           :when (not (#{"none" "master"} worktree-name))]
     (when-not (or (fs/exists? (fs/path worktree-path ".git"))
                   (fs/directory? (fs/path worktree-path ".git")))
-      (sh "git" "-C" (str (:working-dir ctx)) "worktree" "add" "--force" "-B" branch-name (str worktree-path) "HEAD"))))
+      (when-not (sh-ok? "git" "-C" (str (:working-dir ctx))
+                        "worktree" "add" "--force" "-B" branch-name (str worktree-path) "HEAD")
+        (fail! (str red "Error:" reset " Failed to create worktree '" worktree-name "'"))))))
 
 (defn prepare-handoff-dirs! [ctx]
   (doseq [row (:roles ctx)

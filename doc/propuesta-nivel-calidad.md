@@ -94,3 +94,33 @@ estructura ✓ (dentro del cleaner) · acceptance/Gherkin ✗ · property ✗ ·
 parecía: su valor real es la profundidad dentro de un pack, no sustituir la elección de pack.
 Posible simplificación: empezar por solo dos niveles (standard = actual, light = sin mutation
 run ni Gherkin mutation) y dejar que la elección de pack haga el resto.
+
+## 6. Análisis: prioridad de spec vs hardening (la crítica a two-pack)
+
+**La lógica de two-pack**: TDD ya especifica el comportamiento a nivel de unit tests; Gherkin es
+una segunda capa (contrato revisable + acceptance end-to-end) que es cara (pipeline APS); los
+gates de hardening (CRAP≤6, DRY, mutation run) son el piso de calidad del código.
+
+**La crítica (válida)**: para una tarea pequeña la prioridad está invertida — el mutation run es
+caro y protege código que quizá se tire en un prototipo; la spec barata asegura que se construya
+lo CORRECTO. Una feature bien endurecida pero equivocada sigue siendo equivocada. Orden lógico:
+primero QUÉ (spec), después CÓMO (gates).
+
+| | two-pack | variante spec-first (propuesta) |
+|---|---|---|
+| Spec base | unit tests (TDD) | Gherkin ligero (contrato revisable + aprobación humana) + TDD |
+| Protección código | CRAP≤6 + DRY + **mutation run** | CRAP/DRY razonable, **sin mutation run** |
+| Coste | ~2-3x | ~1.5-2x |
+| Riesgo que cubre | código sucio/incambiable | **construir lo incorrecto** |
+
+**El hueco que revela**: two-pack asume que Gherkin viene con el coste completo del pipeline APS
+(parser + entrypoint generator + runtime + step handlers). No ofrece la variante "spec-lite":
+escribir el Gherkin como contrato revisable sin construir el pipeline ni correr mutation.
+
+**Refinamiento del nivel `light`**:
+
+> `light` = Gherkin escrito como contrato + aprobación humana + TDD + CRAP/DRY razonable —
+> **sin pipeline APS, sin mutation run, sin Gherkin mutation, sin property tests**.
+
+Esta variante cubre el riesgo más importante (¿es lo correcto? ¿lo aprueba el humano?) a menor
+coste que "mutation run sin spec".

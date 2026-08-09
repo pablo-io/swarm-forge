@@ -4,7 +4,8 @@
 > **Origen**: evaluación de la corrida `saas-prototype` (ver `REPORT.md` del proyecto): los gates
 > fijos (CRAP≤6, mutation run, DRY, soft Gherkin) cuestan tokens que no todos los proyectos
 > necesitan. Esta propuesta añade un **eje de calidad** configurable por proyecto.
-> **Pendiente**: revisar si el alcance de `two-pack` ya cubre parte de esto (sección 5).
+> **Nota**: la revisión de two-pack (sección 5) acota la propuesta — el valor real es la
+> profundidad dentro de un pack, no sustituir la elección de pack.
 
 ## 1. Los 3 niveles
 
@@ -62,8 +63,34 @@ en maximum, los 4".
 Para enforcement duro haría falta un `tools/quality-check` (validar artefactos del nivel), paso
 opcional posterior.
 
-## 5. Pregunta abierta: ¿two-pack ya resuelve parte de esto?
+## 5. Revisión: ¿two-pack ya resuelve parte de esto?
 
-Pendiente de revisar el alcance real de `two-pack` en el proyecto original. Hipótesis: los packs
-ya codifican una elección de calidad (qué gates existen), y el eje de nivel añadiría *profundidad*
-dentro de un pack. La sección 6 registrará la comparación.
+**Resultado de la revisión del alcance real de two-pack (proyecto original):**
+
+- **coder (two-pack)**: TDD + unit tests SOLO — excluye explícitamente acceptance, Gherkin, IR,
+  Gherkin mutation, property tests, CRAP, DRY y language mutation.
+- **cleaner (two-pack, batch)**: coverage, **CRAP≤6**, **DRY**, estructura/encapsulación/dependencias
+  y **mutation run sobre comportamiento no cubierto** + tests para matar mutantes.
+
+**Perfil de calidad de two-pack**: unit tests ✓ · CRAP≤6 ✓ · DRY ✓ · mutation run ✓ ·
+estructura ✓ (dentro del cleaner) · acceptance/Gherkin ✗ · property ✗ · QA separado ✗.
+
+### Conclusión
+
+1. **two-pack NO es `minimal`**: mantiene los gates duros de hardening (CRAP≤6, DRY, mutation
+   run). Es "hardening completo sin especificación" — no es la opción barata en el eje de
+   profundidad.
+2. **Los packs ya codifican un eje de calidad**: qué gates EXISTEN (two-pack: sin spec;
+   four-pack: spec + arquitectura; six-pack: + hardender + QA).
+3. **El eje de nivel añade lo que los packs NO cubren**: la PROFUNDIDAD de cada gate activo
+   (CRAP≤6 vs "mejorar razonable"; mutation run vs scan-only; soft Gherkin on/off).
+4. **Implicación práctica**: para "barato", elegir two-pack ya descarta las capas caras
+   (spec/arquitectura) — la palanca principal de coste es el pack. El nivel sirve para escalar
+   profundidad DENTRO de un pack (p. ej. two-pack sin mutation run, four-pack sin Gherkin
+   mutation). La corrida lo confirmó: el derroche principal fue four-pack para un login form,
+   no la profundidad de los gates.
+
+**Veredicto**: la propuesta del nivel sigue siendo válida pero es **más estrecha** de lo que
+parecía: su valor real es la profundidad dentro de un pack, no sustituir la elección de pack.
+Posible simplificación: empezar por solo dos niveles (standard = actual, light = sin mutation
+run ni Gherkin mutation) y dejar que la elección de pack haga el resto.

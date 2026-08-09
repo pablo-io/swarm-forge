@@ -124,3 +124,31 @@ escribir el Gherkin como contrato revisable sin construir el pipeline ni correr 
 
 Esta variante cubre el riesgo más importante (¿es lo correcto? ¿lo aprueba el humano?) a menor
 coste que "mutation run sin spec".
+
+## 7. Spec-light: ¿Gherkin u otras alternativas?
+
+**Comparativa de opciones para un contrato barato y revisable:**
+
+| Opción | Coste | Contrato humano pre-código | Enforcement real | Riesgo | Upgrade a spec-full |
+|---|---|---|---|---|---|
+| TDD tests como spec (two-pack) | ~1x | ❌ | ✅ | el usuario ve el comportamiento al final | — |
+| Criterios en prosa (markdown) | ~1x | ✅ impreciso | ❌ | ambigüedad | reescribir |
+| **Gherkin escrito-only (light)** | ~1.5x | ✅ preciso | ❌ | **spec drift** | ✅ cero reescritura |
+| Escenarios Given/When/Then en markdown | ~1x | ✅ | ❌ | sin formato estándar | reescritura media |
+
+**Punto clave**: en light el enforcement real lo pone el TDD del coder — convierte cada escenario
+aprobado en unit tests. El Gherkin queda como contrato humano + guía, no como verificación.
+El riesgo de **spec drift** se mitiga con una regla del workflow light: *"el coder mapea cada
+escenario aprobado a unit tests; el handoff/report confirma el mapeo escenario→tests"*.
+
+**Recomendación**: en four-pack, light = degradación natural — el specifier ya escribe Gherkin y
+pide aprobación; se corta la parte trasera del pipeline (el coder no construye entrypoint
+generator/runtime/step handlers, implementa con TDD mapeando escenarios). Si mañana se escala a
+spec-full, los `.feature` ya están — solo se construye el pipeline alrededor.
+
+**Añadido barato recomendado**: en light, el coder corre `gherkin-parser` SOLO para validar que
+el spec parsea (segundos, sin construir el pipeline) — evita que un Gherkin con sintaxis rota
+pase como contrato.
+
+**Cuándo elegir cada una**: nunca se va a escalar → prosa o TDD-only; puede escalar → Gherkin
+escrito-only (el formato ES el upgrade path); el humano debe aprobar antes de codear → Gherkin.
